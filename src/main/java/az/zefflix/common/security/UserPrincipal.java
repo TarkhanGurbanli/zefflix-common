@@ -3,51 +3,84 @@ package az.zefflix.common.security;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import lombok.Builder;
-import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 /**
- * JWT token-dən çıxarılan autentifika olunmuş istifadəçi.
- * Spring Security {@link org.springframework.security.core.context.SecurityContext}-ə yerləşdirilir.
+ * JWT token-ləri ilə işləyərkən istifadəçi məlumatlarını daşıyan immutable value object.
  *
- * <p>Hər servis bu principal-dan mövcud istifadəçi məlumatlarını alır:
+ * <p>{@link UserDetails} implement edir ki, Spring Security
+ * {@link org.springframework.security.core.context.SecurityContext}-ə
+ * birbaşa yerləşdirilə bilsin və {@code SecurityUtils.getCurrentUser()} düzgün işləsin.
+ *
+ * <p>İstifadə nümunəsi:
  * <pre>
- *   UserPrincipal user = SecurityUtils.getCurrentUser();
- *   UUID userId = user.getId();
+ *   UserPrincipal principal = UserPrincipal.of(
+ *       UUID.fromString("..."),
+ *       "user@zefflix.az",
+ *       "username",
+ *       List.of("ROLE_USER")
+ *   );
+ *   String token = jwtUtil.generateAccessToken(principal);
  * </pre>
  */
-@Getter
-@Builder
-public class UserPrincipal implements UserDetails {
+public final class UserPrincipal implements UserDetails {
 
     private final UUID id;
     private final String email;
     private final String username;
-    private final Collection<? extends GrantedAuthority> authorities;
+    private final List<String> roles;
 
-    /**
-     * Rol siyahısından UserPrincipal yaradır.
-     */
-    public static UserPrincipal of(UUID id, String email, String username, List<String> roles) {
-        List<SimpleGrantedAuthority> authorities = roles.stream()
-            .map(role -> new SimpleGrantedAuthority(
-                role.startsWith("ROLE_") ? role : "ROLE_" + role))
-            .toList();
-
-        return UserPrincipal.builder()
-            .id(id)
-            .email(email)
-            .username(username)
-            .authorities(authorities)
-            .build();
+    private UserPrincipal(UUID id, String email, String username, List<String> roles) {
+        this.id = id;
+        this.email = email;
+        this.username = username;
+        this.roles = List.copyOf(roles);
     }
 
+    /**
+     * Factory method.
+     */
+    public static UserPrincipal of(UUID id, String email, String username, List<String> roles) {
+        return new UserPrincipal(id, email, username, roles);
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    // ── UserDetails ───────────────────────────────────────────────────────────
+
+    /**
+     * Spring Security üçün username = email.
+     */
+    @Override
+    public String getUsername() {
+        return email;
+    }
+
+    /**
+     * Rolları {@link GrantedAuthority} kolleksiyasına çevirir.
+     * "ROLE_USER" → {@code SimpleGrantedAuthority("ROLE_USER")}
+     */
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return roles.stream()
+                .map(SimpleGrantedAuthority::new)
+                .toList();
+    }
+
+    /**
+     * Şifrə JWT axınında istifadə olunmur — boş string qaytarılır.
+     */
     @Override
     public String getPassword() {
-        return null; // Şifrə heç vaxt token-də saxlanmır
+        return "";
     }
 
     @Override
@@ -69,4 +102,12 @@ public class UserPrincipal implements UserDetails {
     public boolean isEnabled() {
         return true;
     }
+
+    /**
+     * Original String rol siyahısını qaytarır (JWT claim-ləri üçün).
+     */
+    public List<String> getRoles() {
+        return roles;
+    }
+
 }

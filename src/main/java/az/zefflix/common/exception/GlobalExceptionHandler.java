@@ -35,36 +35,36 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound(
-        ResourceNotFoundException ex, HttpServletRequest req) {
-        log.warn("ResourceNotFound [{}] → {}", req.getRequestURI(), ex.getMessage());
+            ResourceNotFoundException ex, HttpServletRequest req) {
+        log.warn("ResourceNotFound [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(
-        BadRequestException ex, HttpServletRequest req) {
-        log.warn("BadRequest [{}] → {}", req.getRequestURI(), ex.getMessage());
+            BadRequestException ex, HttpServletRequest req) {
+        log.warn("BadRequest [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiResponse<Void>> handleConflict(
-        ConflictException ex, HttpServletRequest req) {
-        log.warn("Conflict [{}] → {}", req.getRequestURI(), ex.getMessage());
+            ConflictException ex, HttpServletRequest req) {
+        log.warn("Conflict [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnauthorized(
-        UnauthorizedException ex, HttpServletRequest req) {
-        log.warn("Unauthorized [{}] → {}", req.getRequestURI(), ex.getMessage());
+            UnauthorizedException ex, HttpServletRequest req) {
+        log.warn("Unauthorized [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ApiResponse<Void>> handleForbidden(
-        ForbiddenException ex, HttpServletRequest req) {
-        log.warn("Forbidden [{}] → {}", req.getRequestURI(), ex.getMessage());
+            ForbiddenException ex, HttpServletRequest req) {
+        log.warn("Forbidden [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
     }
 
@@ -72,25 +72,25 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthentication(
-        AuthenticationException ex, HttpServletRequest req) {
-        log.warn("AuthenticationException [{}] → {}", req.getRequestURI(), ex.getMessage());
+            AuthenticationException ex, HttpServletRequest req) {
+        log.warn("AuthenticationException [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(HttpStatus.UNAUTHORIZED, "AUTHENTICATION_FAILED", ex.getMessage());
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(
-        BadCredentialsException ex, HttpServletRequest req) {
+            BadCredentialsException ex, HttpServletRequest req) {
         log.warn("BadCredentials [{}]", req.getRequestURI());
         return buildResponse(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS",
-            "Email və ya şifrə yanlışdır.");
+                "Email ve ya sifre yanlisdir.");
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(
-        AccessDeniedException ex, HttpServletRequest req) {
-        log.warn("AccessDenied [{}] → {}", req.getRequestURI(), ex.getMessage());
+            AccessDeniedException ex, HttpServletRequest req) {
+        log.warn("AccessDenied [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(HttpStatus.FORBIDDEN, "ACCESS_DENIED",
-            "Bu əməliyyat üçün icazəniz yoxdur.");
+                "Bu emeliyyat ucun icazəniz yoxdur.");
     }
 
     // ── Validation exceptions ─────────────────────────────────────────────────
@@ -101,7 +101,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleValidation(
-        MethodArgumentNotValidException ex, HttpServletRequest req) {
+            MethodArgumentNotValidException ex, HttpServletRequest req) {
 
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
@@ -110,14 +110,15 @@ public class GlobalExceptionHandler {
             errors.put(field, message);
         });
 
-        log.warn("Validation failed [{}] → {} field error(s)", req.getRequestURI(), errors.size());
+        log.warn("Validation failed [{}] -> {} field error(s)", req.getRequestURI(), errors.size());
+        // FIX: replaced "VALİDASİYA_XƏTİ" (non-ASCII) with "VALIDATION_ERROR"
         return ResponseEntity.badRequest()
-            .body(ApiResponse.error("VALİDASİYA_XƏTİ", "Sahə doğrulaması uğursuz oldu.", errors));
+                .body(ApiResponse.error("VALIDATION_ERROR", "Sehe dogrulamasi ugursuz oldu.", errors));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleConstraintViolation(
-        ConstraintViolationException ex, HttpServletRequest req) {
+            ConstraintViolationException ex, HttpServletRequest req) {
 
         Map<String, String> errors = new HashMap<>();
         for (ConstraintViolation<?> cv : ex.getConstraintViolations()) {
@@ -128,49 +129,50 @@ public class GlobalExceptionHandler {
 
         log.warn("ConstraintViolation [{}]", req.getRequestURI());
         return ResponseEntity.badRequest()
-            .body(ApiResponse.error("CONSTRAINT_VIOLATION", "Məhdudiyyət pozulması.", errors));
+                .body(ApiResponse.error("CONSTRAINT_VIOLATION", "Mehdudiyyet pozulmasi.", errors));
     }
 
     // ── HTTP / request exceptions ─────────────────────────────────────────────
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotReadable(
-        HttpMessageNotReadableException ex, HttpServletRequest req) {
-        log.warn("NotReadable [{}] → {}", req.getRequestURI(), ex.getMessage());
-        return buildResponse(HttpStatus.BAD_REQUEST, "INVALID_JSON", "Sorğu gövdəsi oxuna bilmir.");
+            HttpMessageNotReadableException ex, HttpServletRequest req) {
+        log.warn("NotReadable [{}] -> {}", req.getRequestURI(), ex.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, "INVALID_JSON", "Sorgu govdesi oxuna bilmir.");
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingParam(
-        MissingServletRequestParameterException ex, HttpServletRequest req) {
-        log.warn("MissingParam [{}] → {}", req.getRequestURI(), ex.getMessage());
+            MissingServletRequestParameterException ex, HttpServletRequest req) {
+        log.warn("MissingParam [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(HttpStatus.BAD_REQUEST, "MISSING_PARAMETER",
-            String.format("Tələb olunan parametr yoxdur: '%s'", ex.getParameterName()));
+                String.format("Teleb olunan parametr yoxdur: '%s'", ex.getParameterName()));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
-        MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
-        log.warn("TypeMismatch [{}] → {}", req.getRequestURI(), ex.getMessage());
+            MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+        log.warn("TypeMismatch [{}] -> {}", req.getRequestURI(), ex.getMessage());
         return buildResponse(HttpStatus.BAD_REQUEST, "TYPE_MISMATCH",
-            String.format("Parametr '%s' üçün yanlış tip.", ex.getName()));
+                String.format("Parametr '%s' ucun yanlish tip.", ex.getName()));
     }
 
     // ── Fallback ──────────────────────────────────────────────────────────────
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneral(
-        Exception ex, HttpServletRequest req) {
+            Exception ex, HttpServletRequest req) {
         log.error("Unhandled exception [{}]", req.getRequestURI(), ex);
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
-            "Daxili server xətası baş verdi. Zəhmət olmasa sonra yenidən cəhd edin.");
+                "Daxili server xetasi bas verdi. Zehmet olmasa sonra yeniden ced edin.");
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private <T> ResponseEntity<ApiResponse<T>> buildResponse(
-        HttpStatus status, String code, String message) {
+            HttpStatus status, String code, String message) {
         return ResponseEntity.status(status)
-            .body(ApiResponse.error(code, message, null));
+                .body(ApiResponse.error(code, message, null));
     }
+
 }

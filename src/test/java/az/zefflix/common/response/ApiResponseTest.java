@@ -9,10 +9,9 @@ import org.junit.jupiter.api.Test;
 class ApiResponseTest {
 
     @Test
-    @DisplayName("Uğurlu cavab - data ilə")
+    @DisplayName("Ugurlu cavab - data ile")
     void successWithData_shouldSetCorrectFields() {
         ApiResponse<String> response = ApiResponse.success("test-data");
-
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getData()).isEqualTo("test-data");
         assertThat(response.getErrorCode()).isNull();
@@ -20,32 +19,30 @@ class ApiResponseTest {
     }
 
     @Test
-    @DisplayName("Uğurlu cavab - mesaj və data ilə")
+    @DisplayName("Ugurlu cavab - mesaj ve data ile")
     void successWithMessageAndData_shouldSetAllFields() {
-        ApiResponse<Integer> response = ApiResponse.success("Tapıldı", 42);
-
+        ApiResponse<Integer> response = ApiResponse.success("Tapildi", 42);
         assertThat(response.isSuccess()).isTrue();
-        assertThat(response.getMessage()).isEqualTo("Tapıldı");
+        assertThat(response.getMessage()).isEqualTo("Tapildi");
         assertThat(response.getData()).isEqualTo(42);
     }
 
     @Test
-    @DisplayName("Xəta cavabı - bütün sahələr")
+    @DisplayName("Xeta cavabi - butun saheler")
     void error_shouldSetAllErrorFields() {
-        ApiResponse<Void> response = ApiResponse.error("NOT_FOUND", "Tapılmadı", null);
-
+        ApiResponse<Void> response = ApiResponse.error("NOT_FOUND", "Tapilmadi", null);
         assertThat(response.isSuccess()).isFalse();
         assertThat(response.getErrorCode()).isEqualTo("NOT_FOUND");
-        assertThat(response.getMessage()).isEqualTo("Tapılmadı");
+        assertThat(response.getMessage()).isEqualTo("Tapilmadi");
         assertThat(response.getData()).isNull();
     }
 
     @Test
-    @DisplayName("Xəta cavabı - data-sız")
+    @DisplayName("Xeta cavabi - data-siz")
     void errorWithoutData_shouldHaveNullData() {
-        ApiResponse<Void> response = ApiResponse.error("ERROR", "Xəta");
-
+        ApiResponse<Void> response = ApiResponse.error("ERROR", "Xeta");
         assertThat(response.isSuccess()).isFalse();
         assertThat(response.getData()).isNull();
     }
+
 }

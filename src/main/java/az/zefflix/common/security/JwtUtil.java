@@ -8,171 +8,151 @@ import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import javax.crypto.SecretKey;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * JWT access/refresh token yaratma, doğrulama və parse etmə.
- *
- * <p>Tələb olunan application properties:
- * <pre>
- * zefflix:
- *   jwt:
- *     secret: "min-256-bit-secret-key-here-change-in-production"
- *     access-token-expiration: 900000      # 15 dəq (ms)
- *     refresh-token-expiration: 604800000  # 7 gün (ms)
- * </pre>
+ * JWT token-lərin yaradılması, doğrulanması və parse edilməsi üçün utility sinifi.
  */
-@Slf4j
-@Component
 public class JwtUtil {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
+
     private static final String CLAIM_USER_ID = "userId";
-    private static final String CLAIM_EMAIL = "email";
     private static final String CLAIM_USERNAME = "username";
     private static final String CLAIM_ROLES = "roles";
-    private static final String CLAIM_TOKEN_TYPE = "type";
-    private static final String ACCESS_TOKEN = "access";
-    private static final String REFRESH_TOKEN = "refresh";
+    private static final String CLAIM_TOKEN_TYPE = "tokenType";
+    private static final String TYPE_ACCESS = "ACCESS";
+    private static final String TYPE_REFRESH = "REFRESH";
 
-    @Value("${zefflix.jwt.secret}")
-    private String secret;
+    // Package-private fields allow ReflectionTestUtils injection in unit tests.
+    String secret;
+    long accessTokenExpiration;
+    long refreshTokenExpiration;
 
-    @Value("${zefflix.jwt.access-token-expiration:900000}")
-    private long accessTokenExpiration;
+    /** No-arg constructor for test usage with ReflectionTestUtils. */
+    public JwtUtil() {
+    }
 
-    @Value("${zefflix.jwt.refresh-token-expiration:604800000}")
-    private long refreshTokenExpiration;
+    /** Production constructor — initialised from JwtProperties. */
+    public JwtUtil(JwtProperties properties) {
+        if (properties.getSecret() == null || properties.getSecret().isBlank()) {
+            throw new IllegalArgumentException(
+                    "zefflix.security.jwt.secret konfigurasiya edilmeyib.");
+        }
+        this.secret = properties.getSecret();
+        this.accessTokenExpiration = properties.getAccessTokenExpiryMs();
+        this.refreshTokenExpiration = properties.getRefreshTokenExpiryMs();
+    }
 
-    // ── Token generation ─────────────────────────────────────────────────────
-
-    /**
-     * İstifadəçi üçün access token yaradır.
-     * Token içinə userId, email, username və rol siyahısı daxil edilir.
-     */
     public String generateAccessToken(UserPrincipal principal) {
-        List<String> roles = principal.getAuthorities().stream()
-            .map(Object::toString)
-            .toList();
-
-        return Jwts.builder()
-            .subject(principal.getId().toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
-            .claims(Map.of(
-                CLAIM_USER_ID, principal.getId().toString(),
-                CLAIM_EMAIL, principal.getEmail(),
-                CLAIM_USERNAME, principal.getUsername(),
-                CLAIM_ROLES, roles,
-                CLAIM_TOKEN_TYPE, ACCESS_TOKEN
-            ))
-            .signWith(getSigningKey())
-            .compact();
+        return buildToken(
+                principal.getId().toString(),
+                principal.getEmail(),
+                principal.getUsername(),
+                principal.getRoles(),
+                TYPE_ACCESS,
+                accessTokenExpiration
+        );
     }
 
-    /**
-     * Refresh token yaradır. Yalnız userId saxlanır.
-     */
     public String generateRefreshToken(UUID userId) {
+        long now = System.currentTimeMillis();
         return Jwts.builder()
-            .subject(userId.toString())
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + refreshTokenExpiration))
-            .claims(Map.of(
-                CLAIM_USER_ID, userId.toString(),
-                CLAIM_TOKEN_TYPE, REFRESH_TOKEN
-            ))
-            .signWith(getSigningKey())
-            .compact();
+                .subject(userId.toString())
+                .claim(CLAIM_TOKEN_TYPE, TYPE_REFRESH)
+                .claim(CLAIM_USER_ID, userId.toString())
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + refreshTokenExpiration))
+                .signWith(signingKey())
+                .compact();
     }
 
-    // ── Token parsing ─────────────────────────────────────────────────────────
-
-    /**
-     * Token-dən bütün claim-ləri çıxarır.
-     *
-     * @throws JwtException token etibarsız və ya müddəti bitibsə
-     */
-    public Claims extractAllClaims(String token) {
-        return Jwts.parser()
-            .verifyWith(getSigningKey())
-            .build()
-            .parseSignedClaims(token)
-            .getPayload();
-    }
-
-    public UUID extractUserId(String token) {
-        return UUID.fromString(extractAllClaims(token).get(CLAIM_USER_ID, String.class));
-    }
-
-    public String extractEmail(String token) {
-        return extractAllClaims(token).get(CLAIM_EMAIL, String.class);
-    }
-
-    public String extractUsername(String token) {
-        return extractAllClaims(token).get(CLAIM_USERNAME, String.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    public List<String> extractRoles(String token) {
-        return extractAllClaims(token).get(CLAIM_ROLES, List.class);
-    }
-
-    public boolean isAccessToken(String token) {
-        return ACCESS_TOKEN.equals(extractAllClaims(token).get(CLAIM_TOKEN_TYPE, String.class));
-    }
-
-    public boolean isRefreshToken(String token) {
-        return REFRESH_TOKEN.equals(extractAllClaims(token).get(CLAIM_TOKEN_TYPE, String.class));
-    }
-
-    // ── Validation ────────────────────────────────────────────────────────────
-
-    /**
-     * Token-in etibarlı (imzalanmış, vaxtı keçməmiş) olduğunu yoxlayır.
-     */
     public boolean isTokenValid(String token) {
         try {
-            Claims claims = extractAllClaims(token);
-            return claims.getExpiration().after(new Date());
-        } catch (ExpiredJwtException e) {
-            log.debug("Token müddəti bitib: {}", e.getMessage());
-            return false;
-        } catch (JwtException e) {
-            log.warn("Etibarsız token: {}", e.getMessage());
+            parseClaims(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("Invalid JWT: {}", e.getMessage());
             return false;
         }
     }
 
     public boolean isTokenExpired(String token) {
         try {
-            return extractAllClaims(token).getExpiration().before(new Date());
+            parseClaims(token);
+            return false;
         } catch (ExpiredJwtException e) {
             return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
         }
     }
 
-    /**
-     * Token-dən UserPrincipal yenidən qurur. JwtAuthFilter istifadə edir.
-     */
+    public boolean isAccessToken(String token) {
+        return TYPE_ACCESS.equals(parseClaims(token).get(CLAIM_TOKEN_TYPE, String.class));
+    }
+
+    public boolean isRefreshToken(String token) {
+        return TYPE_REFRESH.equals(parseClaims(token).get(CLAIM_TOKEN_TYPE, String.class));
+    }
+
+    public UUID extractUserId(String token) {
+        return UUID.fromString(parseClaims(token).get(CLAIM_USER_ID, String.class));
+    }
+
+    public String extractEmail(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> extractRoles(String token) {
+        Object raw = parseClaims(token).get(CLAIM_ROLES);
+        if (raw instanceof List<?> list) {
+            return list.stream().map(Object::toString).toList();
+        }
+        return List.of();
+    }
+
     public UserPrincipal buildPrincipal(String token) {
-        Claims claims = extractAllClaims(token);
-        return UserPrincipal.of(
-            UUID.fromString(claims.get(CLAIM_USER_ID, String.class)),
-            claims.get(CLAIM_EMAIL, String.class),
-            claims.get(CLAIM_USERNAME, String.class),
-            extractRoles(token)
-        );
+        Claims claims = parseClaims(token);
+        UUID id = UUID.fromString(claims.get(CLAIM_USER_ID, String.class));
+        String email = claims.getSubject();
+        String username = claims.get(CLAIM_USERNAME, String.class);
+        return UserPrincipal.of(id, email, username, extractRoles(token));
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
-
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
-        return Keys.hmacShaKeyFor(keyBytes);
+    public Date extractExpiration(String token) {
+        return parseClaims(token).getExpiration();
     }
+
+    private String buildToken(String userId, String email, String username,
+                              List<String> roles, String tokenType, long expiryMs) {
+        long now = System.currentTimeMillis();
+        return Jwts.builder()
+                .subject(email)
+                .claim(CLAIM_USER_ID, userId)
+                .claim(CLAIM_USERNAME, username)
+                .claim(CLAIM_ROLES, roles)
+                .claim(CLAIM_TOKEN_TYPE, tokenType)
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + expiryMs))
+                .signWith(signingKey())
+                .compact();
+    }
+
+    private SecretKey signingKey() {
+        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(signingKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
 }
