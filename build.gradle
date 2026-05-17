@@ -175,7 +175,7 @@ publishing {
 
             name = 'GitHubPackages'
 
-            url = uri('https://maven.pkg.github.com/zefflix/zefflix-common')
+            url = uri('https://maven.pkg.github.com/TarkhanGurbanli/zefflix-common')
 
             credentials {
 
