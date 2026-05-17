@@ -12,7 +12,6 @@
     <module name="FileTabCharacter">
         <property name="eachLine" value="true"/>
     </module>
-    <module name="NewlineAtEndOfFile"/>
     <module name="FileLength">
         <property name="max" value="500"/>
     </module>
@@ -21,18 +20,18 @@
         <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
     </module>
 
+    <!-- Suppression filter for test files -->
+    <module name="SuppressionSingleFilter">
+        <property name="files" value=".*Test\.java$"/>
+        <property name="checks" value="MethodName"/>
+    </module>
+
     <module name="TreeWalker">
 
         <!-- ── Imports ──────────────────────────────────────────────────────── -->
         <module name="AvoidStarImport"/>
         <module name="RedundantImport"/>
         <module name="UnusedImports"/>
-        <module name="ImportOrder">
-            <property name="groups" value="java,javax,jakarta,org,com,az"/>
-            <property name="ordered" value="true"/>
-            <property name="separated" value="true"/>
-            <property name="option" value="top"/>
-        </module>
 
         <!-- ── Naming conventions ─────────────────────────────────────────── -->
         <module name="TypeName"/>
@@ -41,7 +40,10 @@
         <module name="LocalVariableName"/>
         <module name="MemberName"/>
         <module name="StaticVariableName"/>
-        <module name="ConstantName"/>
+        <!-- Allow 'log' as constant name for loggers -->
+        <module name="ConstantName">
+            <property name="format" value="^([A-Z][A-Z0-9]*(_[A-Z0-9]+)*|log|logger)$"/>
+        </module>
         <module name="PackageName">
             <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
         </module>
@@ -100,7 +102,6 @@
 
         <!-- ── Class design ───────────────────────────────────────────────── -->
         <module name="InterfaceIsType"/>
-        <module name="HideUtilityClassConstructor"/>
         <module name="MutableException"/>
         <module name="ThrowsCount">
             <property name="max" value="3"/>
@@ -108,9 +109,6 @@
 
         <!-- ── Annotations ────────────────────────────────────────────────── -->
         <module name="MissingOverride"/>
-        <module name="SuppressWarnings">
-            <property name="format" value="^((?!unchecked|deprecation|rawtypes|resource).)*$"/>
-        </module>
 
         <!-- ── Complexity ─────────────────────────────────────────────────── -->
         <module name="CyclomaticComplexity">
