@@ -1,0 +1,159 @@
+name: CI / Publish
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:     [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  JAVA_VERSION: '21'
+  GRADLE_VERSION: '8.10.2'
+
+jobs:
+  # ── 1. Build & Test ──────────────────────────────────────────────────────────
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write          # test report publish üçün
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Gradle cache – cache key build fayllarına görə dəyişir
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # Checkstyle
+      - name: Run Checkstyle
+        run: ./gradlew checkstyleMain checkstyleTest --no-daemon
+
+      - name: Upload Checkstyle Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkstyle-report
+          path: build/reports/checkstyle/
+          retention-days: 7
+
+      # Compile
+      - name: Compile
+        run: ./gradlew compileJava compileTestJava --no-daemon
+
+      # Test
+      - name: Run Tests
+        run: ./gradlew test --no-daemon
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test/
+          retention-days: 7
+
+      # Test summary PR-da göstərmək üçün
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: build/test-results/test/**/*.xml
+
+      # Build JAR (source + javadoc daxil)
+      - name: Build JAR
+        run: ./gradlew jar sourcesJar javadocJar --no-daemon
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-artifacts
+          path: build/libs/*.jar
+          retention-days: 7
+
+  # ── 2. Publish → GitHub Packages (yalnız tag push-da) ───────────────────────
+  publish:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Restore Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # Tag-dan versiya çıxarışı: v1.2.3 → 1.2.3
+      - name: Extract Version from Tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      # gradle.properties-dəki versiyanı tag ilə uyğunlaşdır
+      - name: Update Version
+        run: |
+          sed -i "s/^version=.*/version=${{ steps.version.outputs.VERSION }}/" gradle.properties
+          echo "Publishing version: ${{ steps.version.outputs.VERSION }}"
+
+      - name: Publish Package
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew publish --no-daemon
+
+      # Release notes üçün GitHub Release yarat
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Zefflix Common Library ${{ steps.version.outputs.VERSION }}
+
+            ### Gradle dependency:
+            ```kotlin
+            implementation("az.zefflix:zefflix-common:${{ steps.version.outputs.VERSION }}")
+            ```
+          files: build/libs/*.jar
+          generate_release_notes: true

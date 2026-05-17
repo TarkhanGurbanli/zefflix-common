@@ -1,0 +1,183 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
+
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'checkstyle'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'az.zefflix'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+
+    withSourcesJar()
+    withJavadocJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+def springBootVersion = project.findProperty("springBootVersion")
+def jjwtVersion = project.findProperty("jjwtVersion")
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.boot:spring-boot-dependencies:${springBootVersion}"
+    }
+}
+
+dependencies {
+
+    // ── Spring ────────────────────────────────────────────────────────────────
+    compileOnly 'org.springframework:spring-web'
+    compileOnly 'org.springframework:spring-context'
+    compileOnly 'org.springframework.security:spring-security-core'
+    compileOnly 'org.springframework.security:spring-security-web'
+    compileOnly 'org.springframework.security:spring-security-config'
+    compileOnly 'org.springframework.data:spring-data-commons'
+    compileOnly 'org.springframework.boot:spring-boot-autoconfigure'
+
+    // ── Jakarta ───────────────────────────────────────────────────────────────
+    compileOnly 'jakarta.persistence:jakarta.persistence-api'
+    compileOnly 'jakarta.servlet:jakarta.servlet-api'
+    compileOnly 'jakarta.validation:jakarta.validation-api'
+
+    // ── JWT ───────────────────────────────────────────────────────────────────
+    api "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
+    // ── Jackson ───────────────────────────────────────────────────────────────
+    api 'com.fasterxml.jackson.core:jackson-databind'
+    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    api 'com.fasterxml.jackson.module:jackson-module-parameter-names'
+
+    // ── Lombok ────────────────────────────────────────────────────────────────
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // ── Jpa ────────────────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+
+    // ── Logging ───────────────────────────────────────────────────────────────
+    api 'org.slf4j:slf4j-api'
+
+    // ── Tests ─────────────────────────────────────────────────────────────────
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+// ── Checkstyle ───────────────────────────────────────────────────────────────
+checkstyle {
+    toolVersion = '10.18.1'
+    configFile = file('config/checkstyle/checkstyle.xml')
+    ignoreFailures = false
+    maxWarnings = 0
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// ── Compile Options ──────────────────────────────────────────────────────────
+tasks.withType(JavaCompile).configureEach {
+
+    options.encoding = 'UTF-8'
+
+    options.compilerArgs += [
+            '-parameters',
+            '-Xlint:unchecked',
+            '-Xlint:deprecation'
+    ]
+}
+
+// ── Test Config ──────────────────────────────────────────────────────────────
+tasks.named('test') {
+
+    useJUnitPlatform()
+
+    jvmArgs(
+            '-XX:+EnableDynamicAgentLoading',
+            '-Xshare:off'
+    )
+
+    testLogging {
+
+        events(
+                TestLogEvent.PASSED,
+                TestLogEvent.FAILED,
+                TestLogEvent.SKIPPED
+        )
+
+        exceptionFormat = TestExceptionFormat.FULL
+        showStandardStreams = false
+    }
+}
+
+// ── Javadoc ──────────────────────────────────────────────────────────────────
+tasks.withType(Javadoc).configureEach {
+
+    options.encoding = 'UTF-8'
+
+    options.addBooleanOption('html5', true)
+}
+
+// ── Publishing ───────────────────────────────────────────────────────────────
+publishing {
+
+    publications {
+
+        mavenJava(MavenPublication) {
+
+            from components.java
+
+            pom {
+
+                name = 'Zefflix Common Library'
+
+                description = 'Shared utilities, exceptions, security and response models for all Zefflix microservices'
+
+                url = 'https://github.com/zefflix/zefflix-common'
+
+                licenses {
+
+                    license {
+
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+
+        maven {
+
+            name = 'GitHubPackages'
+
+            url = uri('https://maven.pkg.github.com/zefflix/zefflix-common')
+
+            credentials {
+
+                username = System.getenv('GITHUB_ACTOR') ?: project.findProperty('gpr.user')
+
+                password = System.getenv('GITHUB_TOKEN') ?: project.findProperty('gpr.token')
+            }
+        }
+    }
+}
