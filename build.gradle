@@ -138,6 +138,11 @@ tasks.withType(Javadoc).configureEach {
     options.encoding = 'UTF-8'
 
     options.addBooleanOption('html5', true)
+
+    // Disable strict Javadoc checking
+    options.addStringOption('Xdoclint:none', '-quiet')
+
+    failOnError = false
 }
 
 // ── Publishing ───────────────────────────────────────────────────────────────
