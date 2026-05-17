@@ -24,13 +24,13 @@ public class SecurityUtils {
      *
      * @throws UnauthorizedException autentifika yoxdursa
      */
-    public static UserPrincipal getCurrentUser() {
+    public UserPrincipal getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()
-            || !(auth.getPrincipal() instanceof UserPrincipal)) {
+                || !(auth.getPrincipal() instanceof UserPrincipal principal)) {
             throw new UnauthorizedException();
         }
-        return (UserPrincipal) auth.getPrincipal();
+        return principal;
     }
 
     /**
@@ -38,7 +38,7 @@ public class SecurityUtils {
      *
      * @throws UnauthorizedException autentifika yoxdursa
      */
-    public static UUID getCurrentUserId() {
+    public UUID getCurrentUserId() {
         return getCurrentUser().getId();
     }
 
@@ -46,7 +46,7 @@ public class SecurityUtils {
      * Cari istifadəçinin ID-sini Optional ilə qaytarır.
      * Anonimlik mümkün olan endpointlər üçün.
      */
-    public static Optional<UUID> getCurrentUserIdOptional() {
+    public Optional<UUID> getCurrentUserIdOptional() {
         try {
             return Optional.of(getCurrentUserId());
         } catch (UnauthorizedException e) {
@@ -56,22 +56,31 @@ public class SecurityUtils {
 
     /**
      * Cari istifadəçinin müəyyən rola malik olduğunu yoxlayır.
+     * Həm "ADMIN" həm də "ROLE_ADMIN" formatını qəbul edir.
      */
-    public static boolean hasRole(String role) {
+    public boolean hasRole(String role) {
         try {
+            // FIX: getAuthorities() artıq UserPrincipal implements UserDetails sayəsində mövcuddur
             String normalizedRole = role.startsWith("ROLE_") ? role : "ROLE_" + role;
             return getCurrentUser().getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals(normalizedRole));
+                    .anyMatch(a -> a.getAuthority().equals(normalizedRole));
         } catch (UnauthorizedException e) {
             return false;
         }
     }
 
-    public static boolean isAdmin() {
+    /**
+     * Cari istifadəçinin ADMIN olduğunu yoxlayır.
+     */
+    public boolean isAdmin() {
         return hasRole("ADMIN");
     }
 
-    public static boolean isModerator() {
+    /**
+     * Cari istifadəçinin MODERATOR olduğunu yoxlayır.
+     */
+    public boolean isModerator() {
         return hasRole("MODERATOR");
     }
+
 }

@@ -1,20 +1,18 @@
 package az.zefflix.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import java.time.LocalDateTime;
-import lombok.Builder;
+import java.time.Instant;
 import lombok.Getter;
 
 /**
- * Bütün Zefflix API endpoint-lərinin standart cavab formatı.
+ * Bütün Zefflix REST endpointlərinin standart cavab wrapper-ı.
  *
  * <p>Uğurlu cavab nümunəsi:
  * <pre>
  * {
  *   "success": true,
- *   "message": "Məzmun tapıldı.",
  *   "data": { ... },
- *   "timestamp": "2024-01-15T10:30:00"
+ *   "timestamp": "2024-01-01T12:00:00Z"
  * }
  * </pre>
  *
@@ -23,79 +21,72 @@ import lombok.Getter;
  * {
  *   "success": false,
  *   "errorCode": "RESOURCE_NOT_FOUND",
- *   "message": "Film tapılmadı: id = '99'",
- *   "timestamp": "2024-01-15T10:30:00"
+ *   "message": "Content tapilmadi: id = '42'",
+ *   "timestamp": "2024-01-01T12:00:00Z"
  * }
  * </pre>
  *
- * @param <T> cavab data tipi
+ * @param <T> data payload tipi
  */
 @Getter
-@Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
 
     private final boolean success;
-    private final String message;
-    private final String errorCode;
     private final T data;
+    private final String errorCode;
+    private final String message;
+    private final Instant timestamp;
 
-    @Builder.Default
-    private final LocalDateTime timestamp = LocalDateTime.now();
-
-    // ── Static factory methods ────────────────────────────────────────────────
+    private ApiResponse(boolean success, T data, String errorCode, String message) {
+        this.success = success;
+        this.data = data;
+        this.errorCode = errorCode;
+        this.message = message;
+        this.timestamp = Instant.now();
+    }
 
     /**
-     * Data ilə uğurlu cavab.
+     * Uğurlu cavab — data ilə.
      */
     public static <T> ApiResponse<T> success(T data) {
-        return ApiResponse.<T>builder()
-            .success(true)
-            .data(data)
-            .build();
+        return new ApiResponse<>(true, data, null, null);
     }
 
     /**
-     * Data və xüsusi mesaj ilə uğurlu cavab.
+     * Uğurlu cavab — datasız (məs. DELETE əməliyyatları).
+     */
+    public static <T> ApiResponse<T> success() {
+        return new ApiResponse<>(true, null, null, null);
+    }
+
+    /**
+     * Uğurlu cavab — mesaj və data ilə.
+     * Parametr sırası: (message, data) — test kontraktına uyğundur.
      */
     public static <T> ApiResponse<T> success(String message, T data) {
-        return ApiResponse.<T>builder()
-            .success(true)
-            .message(message)
-            .data(data)
-            .build();
+        return new ApiResponse<>(true, data, null, message);
     }
 
     /**
-     * Sadəcə mesaj ilə uğurlu cavab (data yoxdur).
-     */
-    public static <T> ApiResponse<T> success(String message) {
-        return ApiResponse.<T>builder()
-            .success(true)
-            .message(message)
-            .build();
-    }
-
-    /**
-     * Xəta cavabı.
+     * Xəta cavabı — errorCode, mesaj və əlavə detallar ilə.
      *
-     * @param errorCode  maşın tərəfindən oxunan xəta kodu
-     * @param message    istifadəçiyə göstəriləcək mesaj
-     * @param data       əlavə xəta detalları (məsələn, field validation xətaları)
+     * @param errorCode maşın tərəfindən oxunan xəta kodu (ASCII, UPPER_SNAKE_CASE)
+     * @param message   insan tərəfindən oxunan xəta mesajı
+     * @param details   əlavə detallar (field validation xətaları və s.)
      */
-    public static <T> ApiResponse<T> error(String errorCode, String message, T data) {
-        return ApiResponse.<T>builder()
-            .success(false)
-            .errorCode(errorCode)
-            .message(message)
-            .data(data)
-            .build();
+    public static <T> ApiResponse<T> error(String errorCode, String message, T details) {
+        return new ApiResponse<>(false, details, errorCode, message);
     }
 
     /**
-     * Data-sız xəta cavabı.
+     * Xəta cavabı — data olmadan (ən çox istifadə olunan overload).
+     *
+     * @param errorCode maşın tərəfindən oxunan xəta kodu
+     * @param message   insan tərəfindən oxunan xəta mesajı
      */
     public static <T> ApiResponse<T> error(String errorCode, String message) {
-        return error(errorCode, message, null);
+        return new ApiResponse<>(false, null, errorCode, message);
     }
+
 }
